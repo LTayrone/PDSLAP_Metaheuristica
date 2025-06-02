@@ -7,6 +7,6 @@ __pycache__/
 *.py[cod]
 
 # Ignorar arquivos específicos
-core/utils/gerar_solucao_inicial.py
-core/utils/gerar_solucao_inicial_hc1.py
-core/utils/operacoes_vizinhanca.py
+utils/gerar_solucao_inicial.py
+utils/gerar_solucao_inicial_hc1.py
+utils/operacoes_vizinhanca.py
