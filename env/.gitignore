@@ -1,0 +1,11 @@
+# Ignorar a pasta de ambiente virtual
+venv/
+.env/
+
+# Ignorar arquivos Python compilados
+__pycache__/
+*.py[cod]
+
+# Ignorar arquivos específicos
+gerar_solucao_inicial_hc1.py
+gerar_solucao_inicial.py
