@@ -21,6 +21,14 @@ def gerar_solucao_inicial_hc1_atualizada(parametros):
     custo_setup = parametros["custo_setup"]
 
     # --- INICIALIZAÇÃO DAS VARIÁVEIS DE DECISÃO FINAIS ---
+    '''
+    Lembrando a estrutura das variáveis de decisão, porem foram refatoradas como "Dicionário aninhado com comprehension"
+    producao = {}
+    for j in range(quantidade_itens):
+        producao[j] = {}  # Cria um dicionário vazio para o item j
+        for t in range(quantidade_periodos):
+            producao[j][t] = 0  # Inicializa cada período com 0
+    '''
     # x: produção do item j no período t
     producao = {j: {t: 0 for t in range(quantidade_periodos)} for j in range(quantidade_itens)}
     # I: estoque do item j com idade k ao final do período t
@@ -366,10 +374,10 @@ def gerar_solucao_inicial_hc1_atualizada(parametros):
         "gamma": pedido_atendido,
         "y": maquina_preparada,
         "z": troca_producao,
-        "sequencias_producao": temp_sequencias_por_periodo # ADICIONADO AQUI
+        "sequencias_producao": temp_sequencias_por_periodo
     }
 
-# A função obter_sequencia_producao também com variáveis em pt-br
+# A função obter_sequencia_producao também com variáveis
 def obter_sequencia_producao(itens_a_produzir, matriz_tempo_setup, ultimo_item_anterior=None):
     """
     Heurística gulosa para determinar uma sequência de produção com base no menor tempo de setup.
