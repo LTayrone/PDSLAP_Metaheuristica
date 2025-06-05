@@ -6,7 +6,7 @@
 from utils.calcular_custo_total import calcular_custo_total
 from utils.carregar_parametros_otimizacao import carregar_parametros_otimizacao
 from utils.gerar_solucao_inicial_hc1_atualizada import gerar_solucao_inicial_hc1_atualizada
-from utils.operacoes_vizinhanca import trocar_ordem_producao_2_itens, alterar_periodo_atendimento_pedido # Adicione a nova função
+from utils.operacoes_vizinhanca import *
 
 import numpy as np
 import random
@@ -90,26 +90,15 @@ if __name__ == "__main__":
     print(f"\nValor da Função Objetivo da Solução Inicial: {valor_fo_inicial}")
     print("-" * 30)
 
-print("\n--- TESTANDO MOVIMENTO DE VIZINHANÇA: Trocar Ordem de Produção ---")
-nova_solucao_swap, delta_swap = trocar_ordem_producao_2_itens(solucao_inicial, parametros)
+for _ in range(20):
+    print("\n--- TESTANDO MOVIMENTO DE VIZINHANÇA: Trocar Ordem de Produção ---")
+    nova_solucao_swap, delta_swap = trocar_ordem_producao_2_itens(solucao_inicial, parametros)
 
-if nova_solucao_swap:
-    print("\nMovimento SWAP RESULTADO: Solução melhor encontrada!")
-    print(f"Delta de Lucro: {delta_swap}")
-    solucao_atual = nova_solucao_swap # Atualiza a solução para continuar testando
-else:
-    print("\nMovimento SWAP RESULTADO: Nenhuma melhoria encontrada ou movimento inválido.")
-    solucao_atual = solucao_inicial # Mantém a original se não houver melhora
-print("-" * 30)
-
-print("\n--- TESTANDO MOVIMENTO DE VIZINHANÇA: Alterar Período de Atendimento ---")
-
-nova_solucao_move_order, delta_move_order = alterar_periodo_atendimento_pedido(solucao_atual, parametros) # Use a solução atualizada
-
-if nova_solucao_move_order:
-    print("\nMovimento MOVER PEDIDO RESULTADO: Solução melhor encontrada!")
-    print(f"Delta de Lucro: {delta_move_order}")
-    # solucao_atual = nova_solucao_move_order # Pode atualizar novamente se quiser encadear
-else:
-    print("\nMovimento MOVER PEDIDO RESULTADO: Nenhuma melhoria encontrada ou movimento inválido.")
-print("-" * 30)
+    if nova_solucao_swap:
+        print("\nMovimento SWAP RESULTADO: Solução melhor encontrada!")
+        print(f"Delta de Lucro: {delta_swap}")
+        solucao_atual = nova_solucao_swap # Atualiza a solução para continuar testando
+    else:
+        print("\nMovimento SWAP RESULTADO: Nenhuma melhoria encontrada ou movimento inválido.")
+        solucao_atual = solucao_inicial # Mantém a original se não houver melhora
+    print("-" * 30)
