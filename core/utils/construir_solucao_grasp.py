@@ -1,8 +1,87 @@
+import random
 import math
-import numpy as np
+from .gerar_solucao_inicial_hc1_atualizada import gerar_solucao_inicial_hc1_atualizada, obter_sequencia_producao
+
+def construir_solucao_grasp(parametros, alpha):
+    """
+    Executa a fase de construção do GRASP para o problema de PDSLAP-AP.
+    Esta função primeiro determina uma ordem de prioridade de pedidos usando um
+    processo guloso randomizado e, em seguida, chama uma função construtiva
+    para gerar a solução completa.
+
+    Args:
+        parametros (dict): Dicionário com os parâmetros do problema.
+        alpha (float): Parâmetro do GRASP (0 <= alpha <= 1) que controla a
+                       aleatoriedade. alpha=0 é puramente guloso.
+
+    Returns:
+        dict: Dicionário contendo a solução construída (x, I, Q, gamma, y, z).
+    """
+    print(f"--- Iniciando Fase de Construção GRASP (alpha = {alpha}) ---")
+
+    # --- 1. Avaliação Gulosa dos Candidatos ---
+    pedidos_candidatos = []
+    for n in range(parametros["num_pedidos"]):
+        # A métrica gulosa é a "Receita Pura".
+        # Usamos a receita no último dia da janela como referência.
+        periodo_ref = parametros["periodo_final_entrega"][n]
+        if periodo_ref < parametros["num_periodos"]:
+            receita = parametros["receita_pedido"][n][periodo_ref]
+            pedidos_candidatos.append({'pedido_id': n, 'receita': receita})
+
+    # Ordena para identificar o melhor e o pior valor
+    pedidos_candidatos.sort(key=lambda x: x['receita'], reverse=True)
+
+    # --- 2. Construção da Lista de Candidatos Restrita (RCL) ---
+    pedidos_priorizados_grasp = []
+    
+    while pedidos_candidatos:
+        receita_max = pedidos_candidatos[0]['receita']
+        receita_min = pedidos_candidatos[-1]['receita']
+
+        # Calcula o limiar de corte para a RCL
+        limiar = receita_max - alpha * (receita_max - receita_min)
+
+        # Filtra os candidatos que atendem ao limiar
+        rcl = [c for c in pedidos_candidatos if c['receita'] >= limiar]
+
+        if not rcl:
+            # Se a RCL estiver vazia (pode acontecer por questões de ponto flutuante),
+            # adiciona o melhor candidato para evitar loop infinito.
+            rcl.append(pedidos_candidatos[0])
+
+        # --- 3. Seleção Aleatória e Atualização ---
+        pedido_selecionado = random.choice(rcl)
+        pedidos_priorizados_grasp.append(pedido_selecionado['pedido_id'])
+
+        # Remove o pedido selecionado da lista de candidatos para a próxima iteração
+        pedidos_candidatos = [c for c in pedidos_candidatos if c['pedido_id'] != pedido_selecionado['pedido_id']]
+
+    print(f"Ordem de prioridade definida pelo GRASP: {pedidos_priorizados_grasp}")
+
+    # --- 4. Construção da Solução Final ---
+    # Agora, usamos a lógica de construção existente, mas com a nova ordem de prioridade.
+    # Isso requer uma pequena adaptação na função 'gerar_solucao_inicial_hc1_atualizada'
+    # para aceitar uma ordem de pedidos pré-definida.
+    
+    solucao_final = construir_com_ordem_definida(parametros, pedidos_priorizados_grasp)
+
+    return solucao_final
 
 
-def gerar_solucao_inicial_hc1_atualizada(parametros):
+def construir_com_ordem_definida(parametros, ordem_pedidos):
+    """
+    Função adaptada da 'gerar_solucao_inicial_hc1_atualizada' para construir uma
+    solução a partir de uma lista de prioridade de pedidos já definida.
+    
+    A lógica interna é a mesma da heurística construtiva original,
+    mas a iteração principal segue a 'ordem_pedidos'.
+    """
+    
+    # Esta função é uma cópia da lógica de 'gerar_solucao_inicial_hc1_atualizada',
+    # com a diferença de que o loop principal itera sobre 'ordem_pedidos'
+    # em vez de uma lista ordenada por receita.
+
     # --- EXTRAÇÃO DOS PARÂMETROS ---
     quantidade_pedidos = parametros["num_pedidos"]
     quantidade_periodos = parametros["num_periodos"]
@@ -10,62 +89,25 @@ def gerar_solucao_inicial_hc1_atualizada(parametros):
     demanda_pedidos = parametros["demanda_pedidos"]
     capacidade_periodo_original = parametros["capacidade_periodo"].copy()
     tempo_producao = parametros["tempo_producao"]
-    tempo_setup = parametros["tempo_setup"]  # Matriz de tempos de setup
+    tempo_setup = parametros["tempo_setup"]
     periodo_inicial_entrega = parametros["periodo_inicial_entrega"]
     periodo_final_entrega = parametros["periodo_final_entrega"]
-    receita_pedido = parametros["receita_pedido"]
-    vida_util = parametros["vida_util"]  # shelf-life
-    custo_estoque = parametros["custo_estoque"]
-    custo_setup = parametros["custo_setup"]
+    vida_util = parametros["vida_util"]
 
-    # --- INICIALIZAÇÃO DAS VARIÁVEIS DE DECISÃO FINAIS ---
-    '''
-    Lembrando a estrutura das variáveis de decisão, porem foram refatoradas como "Dicionário aninhado com comprehension"
-    producao = {}
-    for j in range(quantidade_itens):
-        producao[j] = {}  # Cria um dicionário vazio para o item j
-        for t in range(quantidade_periodos):
-            producao[j][t] = 0  # Inicializa cada período com 0
-    '''
-    # x: produção do item j no período t
+    # --- INICIALIZAÇÃO DAS VARIÁVEIS ---
     producao = {j: {t: 0 for t in range(quantidade_periodos)} for j in range(quantidade_itens)}
-    # I: estoque do item j com idade k ao final do período t
     estoque = {j: {t: {k: 0 for k in range(max(vida_util) + 1)} for t in range(quantidade_periodos)} for j in range(quantidade_itens)}
-    # Q: quantidade de itens j com idade k utilizados para atender o pedido n ao final do período t
     quantidade_atendida_por_pedido = {j: {n: {t: {k: 0 for k in range(max(vida_util) + 1)} for t in range(quantidade_periodos)} for n in range(quantidade_pedidos)} for j in range(quantidade_itens)}
-    # gamma: 1 se o pedido n vai ser atendido no período t
     pedido_atendido = {n: {t: 0 for t in range(quantidade_periodos)} for n in range(quantidade_pedidos)}
-    # y: 1 se a máquina está preparada para a produção do item j no início do período t
     maquina_preparada = {j: {t: 0 for t in range(quantidade_periodos)} for j in range(quantidade_itens)}
-    # z: 1 se ocorre troca da produção do item i para o item j durante o período t
     troca_producao = {i: {j: {t: 0 for t in range(quantidade_periodos)} for j in range(quantidade_itens)} for i in range(quantidade_itens)}
-
-    # --- VARIÁVEIS DE ESTADO PERSISTENTES ---
-    # estoque_detalhado: [(periodo_producao, quantidade_atual, periodo_vencimento), ...] para cada item
     lotes_em_estoque = {j: [] for j in range(quantidade_itens)}
     capacidade_restante_por_periodo = {t: capacidade_periodo_original[t] for t in range(quantidade_periodos)}
     ultimo_item_produzido_no_periodo = {t: None for t in range(quantidade_periodos)}
+    sequencias_por_periodo = {t: [] for t in range(quantidade_periodos)}
 
-    # NOVA VARIÁVEL PARA ARMAZENAR AS SEQUÊNCIAS
-    sequencias_por_periodo = {t: [] for t in range(quantidade_periodos)} # Inicializa com listas vazias
-
-    # --- ETAPA 1: ORDENAR PEDIDOS POR RECEITA ---
-    receita_total_por_pedido = {}
-    for n in range(quantidade_pedidos):
-        periodo_valido_proxy = periodo_inicial_entrega[n]
-        if periodo_valido_proxy < quantidade_periodos:
-            receita_total_por_pedido[n] = receita_pedido[n][periodo_valido_proxy]
-        else:
-            receita_total_por_pedido[n] = -math.inf
-
-    pedidos_priorizados = sorted(
-        [n for n in range(quantidade_pedidos) if receita_total_por_pedido[n] > -math.inf],
-        key=lambda n: receita_total_por_pedido[n],
-        reverse=True
-    )
-
-    # --- ETAPA 2: TENTAR ACEITAR CADA PEDIDO ---
-    for n_pedido in pedidos_priorizados:
+    # --- LOOP PRINCIPAL COM ORDEM DO GRASP ---
+    for n_pedido in ordem_pedidos:
         # Se o pedido já foi atendido em alguma iteração anterior, pula.
         if any(pedido_atendido[n_pedido][t] == 1 for t in range(quantidade_periodos)):
             continue
@@ -365,6 +407,8 @@ def gerar_solucao_inicial_hc1_atualizada(parametros):
                             else:
                                 estoque[j_item_atual][periodo_atual][nova_idade] = 0
 
+
+    # Retorno da solução completa
     return {
         "x": producao,
         "I": estoque,
@@ -372,66 +416,5 @@ def gerar_solucao_inicial_hc1_atualizada(parametros):
         "gamma": pedido_atendido,
         "y": maquina_preparada,
         "z": troca_producao,
-        "sequencias_producao": temp_sequencias_por_periodo
+        "sequencias_producao": sequencias_por_periodo
     }
-
-# A função obter_sequencia_producao também com variáveis
-def obter_sequencia_producao(itens_a_produzir, matriz_tempo_setup, ultimo_item_anterior=None):
-    """
-    Heurística gulosa para determinar uma sequência de produção com base no menor tempo de setup.
-    Tenta construir a sequência visitando o item que tem o menor setup do item atual.
-
-    Args:
-        itens_a_produzir (list): Lista de índices dos itens que devem ser produzidos neste período.
-        matriz_tempo_setup (numpy.ndarray): Matriz de tempos de setup, matriz_tempo_setup[i][j].
-        ultimo_item_anterior (int, optional): O índice do último item produzido no período anterior.
-                                             Usado para calcular o primeiro setup. Defaults to None.
-
-    Returns:
-        tuple: (list: sequencia de itens, float: tempo total de setup)
-    """
-    if not itens_a_produzir:
-        return [], 0.0
-
-    sequencia = []
-    itens_restantes_para_sequenciamento = list(set(itens_a_produzir))
-
-    item_atual_para_sequencia = None
-
-    # Tenta usar o ultimo_item_anterior como o primeiro item da sequência se ele estiver nos itens_a_produzir
-    if ultimo_item_anterior is not None and ultimo_item_anterior in itens_restantes_para_sequenciamento:
-        item_atual_para_sequencia = ultimo_item_anterior
-        itens_restantes_para_sequenciamento.remove(item_atual_para_sequencia)
-    elif itens_restantes_para_sequenciamento:
-        # Caso contrário, escolhe o item com o menor tempo de setup a partir de um estado "neutro" (ou o primeiro da lista)
-        item_atual_para_sequencia = itens_restantes_para_sequenciamento.pop(0)
-    else:
-        return [], 0.0
-
-    sequencia.append(item_atual_para_sequencia)
-
-    tempo_total_setup = 0.0
-
-    # Calcula o setup inicial se houver troca do item anterior para o primeiro item desta sequência
-    if ultimo_item_anterior is not None and ultimo_item_anterior != sequencia[0]:
-        tempo_total_setup += matriz_tempo_setup[ultimo_item_anterior][sequencia[0]]
-
-    while itens_restantes_para_sequenciamento:
-        if item_atual_para_sequencia is None:
-            break
-
-        # Escolhe o próximo item que minimiza o setup do item atual
-        proximo_item = min(
-            itens_restantes_para_sequenciamento,
-            key=lambda j: matriz_tempo_setup[item_atual_para_sequencia][j]
-        )
-
-        # Adiciona o custo de setup se houver troca entre o item atual e o próximo
-        if item_atual_para_sequencia != proximo_item:
-            tempo_total_setup += matriz_tempo_setup[item_atual_para_sequencia][proximo_item]
-
-        sequencia.append(proximo_item)
-        itens_restantes_para_sequenciamento.remove(proximo_item)
-        item_atual_para_sequencia = proximo_item
-
-    return sequencia, tempo_total_setup
