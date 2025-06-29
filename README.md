@@ -70,17 +70,17 @@ O projeto utiliza e desenvolve:
 
 ## Futuras Melhorias
 
-- Implementação de uma função robusta de **"reconstrução da solução"** para garantir a factibilidade de todas as variáveis (`x`, `I`, `Q`, `y`, `z`, `sequencias_producao`) após movimentos de vizinhança que alterem `gamma` (aceitação/período do pedido). Isso é crucial para o correto cálculo da FO e validação de restrições como *shelf-life*.
+- Implementação de uma função de **"reconstrução da solução"** para garantir a factibilidade de todas as variáveis (`x`, `I`, `Q`, `y`, `z`, `sequencias_producao`) após movimentos de vizinhança que alterem `gamma` (aceitação/período do pedido). Isso é crucial para o correto cálculo da FO e validação de restrições como *shelf-life*.
 
 - Desenvolvimento de **meta-heurísticas** (e.g., *Simulated Annealing*, *Busca Tabu*, *GRASP*) que utilizem os movimentos de vizinhança para explorar de forma mais eficiente o espaço de soluções.
 
 - Implementação do **terceiro movimento de vizinhança**: `trocar_status_aceitacao_pedido` (aceitar/rejeitar).
 
-- **Testes computacionais extensivos** com diferentes classes de instâncias para avaliar o desempenho das heurísticas.
+- **Testes computacionais** com diferentes classes de instâncias para avaliar o desempenho das heurísticas.
 
 ## Autores
 
-[TBD]
+[Lucas Tayrone Moreira Ribeiro]
 
 ## Referências
 
