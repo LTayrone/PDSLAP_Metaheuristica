@@ -3,7 +3,7 @@ import numpy as np
 
 
 def gerar_solucao_inicial_hc1_atualizada(parametros):
-    # --- EXTRAÇÃO DOS PARÂMETROS ---
+    # --- Parte 1: Extração dos Parâmetros ---
     quantidade_pedidos = parametros["num_pedidos"]
     quantidade_periodos = parametros["num_periodos"]
     quantidade_itens = parametros["num_itens"]
@@ -18,7 +18,7 @@ def gerar_solucao_inicial_hc1_atualizada(parametros):
     custo_estoque = parametros["custo_estoque"]
     custo_setup = parametros["custo_setup"]
 
-    # --- INICIALIZAÇÃO DAS VARIÁVEIS DE DECISÃO FINAIS ---
+    # --- Parte 2: Inicialização das Variáveis de Decisão ---
     '''
     Lembrando a estrutura das variáveis de decisão, porem foram refatoradas como "Dicionário aninhado com comprehension"
     producao = {}
@@ -40,7 +40,7 @@ def gerar_solucao_inicial_hc1_atualizada(parametros):
     # z: 1 se ocorre troca da produção do item i para o item j durante o período t
     troca_producao = {i: {j: {t: 0 for t in range(quantidade_periodos)} for j in range(quantidade_itens)} for i in range(quantidade_itens)}
 
-    # --- VARIÁVEIS DE ESTADO PERSISTENTES ---
+    # --- variáveis auxiliares ---
     # estoque_detalhado: [(periodo_producao, quantidade_atual, periodo_vencimento), ...] para cada item
     lotes_em_estoque = {j: [] for j in range(quantidade_itens)}
     capacidade_restante_por_periodo = {t: capacidade_periodo_original[t] for t in range(quantidade_periodos)}
@@ -90,7 +90,7 @@ def gerar_solucao_inicial_hc1_atualizada(parametros):
             # pois será preenchido novamente para cada tentativa de período de entrega
             producao_simulada_atual = {j: {t: 0 for t in range(quantidade_periodos)} for j in range(quantidade_itens)}
 
-            # CONSUMO DE ESTOQUE EXISTENTE (SIMULAÇÃO)
+            # CONSUMO DE ESTOQUE EXISTENTE
             for j_item in range(quantidade_itens):
                 demanda_item_para_pedido = demanda_pedidos[n_pedido][j_item]
                 if demanda_item_para_pedido == 0:
@@ -132,7 +132,7 @@ def gerar_solucao_inicial_hc1_atualizada(parametros):
                 melhor_periodo_entrega_para_pedido = candidato_periodo_entrega
                 break
 
-            # PRODUÇÃO E CAPACIDADE PARA NOVOS ITENS (AGORA DISTRIBUÍDA NA SIMULAÇÃO)
+            # PRODUÇÃO E CAPACIDADE PARA NOVOS ITENS
             capacidade_restante_simulacao_por_periodo = {t: capacidade_restante_por_periodo[t] for t in range(quantidade_periodos)}
             ultimo_item_produzido_simulacao_no_periodo = {t: ultimo_item_produzido_no_periodo[t] for t in range(quantidade_periodos)}
 
@@ -309,7 +309,7 @@ def gerar_solucao_inicial_hc1_atualizada(parametros):
                     tempo_total_gasto_no_periodo_reconstrucao = tempo_total_producao_real_periodo_reconstrucao + tempo_setup_real_periodo_reconstrucao
 
                     if tempo_total_gasto_no_periodo_reconstrucao > capacidade_periodo_original[t_reconstrucao]:
-                        # print(f"ATENÇÃO CRÍTICA: Capacidade excedida no período {t_reconstrucao} durante reconstrução. Heurística falhou em manter factibilidade! Total gasto: {tempo_total_gasto_no_periodo_reconstrucao}, Capacidade: {capacidade_periodo_original[t_reconstrucao]}")
+                        print(f"ATENÇÃO CRÍTICA: Capacidade excedida no período {t_reconstrucao} durante reconstrução. Heurística falhou em manter factibilidade! Total gasto: {tempo_total_gasto_no_periodo_reconstrucao}, Capacidade: {capacidade_periodo_original[t_reconstrucao]}")
                         pass # Manter a lógica original de passar, mas é um ponto de atenção.
 
                     capacidade_restante_por_periodo[t_reconstrucao] = capacidade_periodo_original[t_reconstrucao] - tempo_total_gasto_no_periodo_reconstrucao
@@ -321,7 +321,7 @@ def gerar_solucao_inicial_hc1_atualizada(parametros):
 
                         soma_y_periodo_t = sum(maquina_preparada[j][t_reconstrucao] for j in range(quantidade_itens))
                         if soma_y_periodo_t > 1:
-                            print(f"ERRO: Sum de y para o período {t_reconstrucao} é {soma_y_periodo_t}, deveria ser 1 ou 0.")
+                            print(f"ERRO: Soma de y para o período {t_reconstrucao} é {soma_y_periodo_t}, deveria ser 1 ou 0.")
                         # -----------------------------
 
                         if item_anterior_para_seq_reconstrucao is not None and item_anterior_para_seq_reconstrucao != seq_real_periodo_reconstrucao[0]:

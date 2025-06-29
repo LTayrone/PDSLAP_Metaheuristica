@@ -153,7 +153,7 @@ print("\n--- EXECUTANDO FASE DE CONSTRUÇÃO GRASP ---")
 # alpha = 0.0 -> totalmente guloso (deve dar um resultado similar ao HC1)
 # alpha = 1.0 -> totalmente aleatório
 # alpha = 0.2 ou 0.3 são valores comuns para começar.
-alpha_grasp = 0.9
+alpha_grasp = 0.7
 solucao_grasp = construir_solucao_grasp(parametros, alpha_grasp)
 imprimir_solucao(solucao_grasp, parametros)
 valor_fo_grasp = calcular_custo_total(solucao_grasp, parametros) # 
