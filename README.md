@@ -22,17 +22,17 @@ O projeto está organizado na seguinte estrutura de diretórios:
 
 .
 ├── main.py
-└── utils/
-├── calcular_custo_total.py
-├── carregar_parametros_otimizacao.py
-├── gerar_solucao_inicial_hc1.py
-├── gerar_solucao_inicial_hc1_atualizada.py
-├── gerar_solucao_inicial.py
-└── operacoes_vizinhanca.py
-└── inst0_1.txt
-└── inst0_2.txt
-└── inst0_3.txt
-└── inst0_4.txt
+├── utils/
+│   ├── calcular_custo_total.py
+│   ├── carregar_parametros_otimizacao.py
+│   ├── gerar_solucao_inicial.py
+│   ├── gerar_solucao_inicial_hc1.py
+│   ├── gerar_solucao_inicial_hc1_atualizada.py
+│   └── operacoes_vizinhanca.py
+├── inst0_1.txt
+├── inst0_2.txt
+├── inst0_3.txt
+├── inst0_4.txt
 └── inst0_5.txt
 
 ### Principais Componentes e Arquivos
