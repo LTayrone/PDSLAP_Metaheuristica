@@ -19,7 +19,7 @@ O modelo matemático baseia-se na formulação de programação inteira mista.
 ## Estrutura do Projeto
 
 O projeto está organizado na seguinte estrutura de diretórios:
-
+```
 .
 ├── main.py
 ├── utils/
@@ -34,7 +34,7 @@ O projeto está organizado na seguinte estrutura de diretórios:
 ├── inst0_3.txt
 ├── inst0_4.txt
 └── inst0_5.txt
-
+```
 ### Principais Componentes e Arquivos
 
 * **`main.py`**: Ponto de entrada principal do programa. Carrega os parâmetros, gera uma solução inicial heurística e pode ser usado para testar movimentos de vizinhança.
