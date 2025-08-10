@@ -52,7 +52,7 @@ def gerar_solucao_inicial_hc1_atualizada(parametros):
     # --- ETAPA 1: ORDENAR PEDIDOS POR RECEITA ---
     receita_total_por_pedido = {}
     for n in range(quantidade_pedidos):
-        periodo_valido_proxy = periodo_inicial_entrega[n]
+        periodo_valido_proxy = periodo_final_entrega[n]
         if periodo_valido_proxy < quantidade_periodos:
             receita_total_por_pedido[n] = receita_pedido[n][periodo_valido_proxy]
         else:
@@ -71,17 +71,20 @@ def gerar_solucao_inicial_hc1_atualizada(parametros):
             continue
 
         melhor_periodo_entrega_para_pedido = -1
+
         # producao_temporaria_para_pedido_n: acumula a produção deste pedido distribuída nos períodos
         producao_temporaria_para_pedido_n = {j: {t: 0 for t in range(quantidade_periodos)} for j in range(quantidade_itens)}
+
         # quantidade_atendida_temporaria_para_pedido_n: armazena o consumo simulado para este pedido
         quantidade_atendida_temporaria_para_pedido_n = {j: {t: {k: 0 for k in range(max(vida_util) + 1)} for t in range(quantidade_periodos)} for j in range(quantidade_itens)}
 
         # Tenta atender o pedido no último período de sua janela de entrega possível (para adiar produção)
-        for candidato_periodo_entrega in reversed(range(periodo_inicial_entrega[n_pedido], periodo_final_entrega[n_pedido] + 1)):
+        for candidato_periodo_entrega in reversed(range(periodo_final_entrega[n_pedido], periodo_final_entrega[n_pedido] + 1)):
             if candidato_periodo_entrega >= quantidade_periodos:
                 continue
 
             eh_viavel_para_este_periodo_entrega = True
+
             # Copiar o estado atual do estoque para simulação
             lotes_em_estoque_simulacao_atual = {j: [(p_t, q, v_t) for p_t, q, v_t in lotes_em_estoque[j]] for j in range(quantidade_itens)}
             producao_necessaria_apos_consumo = {j: 0 for j in range(quantidade_itens)}
