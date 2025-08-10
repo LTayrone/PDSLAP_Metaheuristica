@@ -19,22 +19,22 @@ O modelo matemático baseia-se na formulação de programação inteira mista.
 ## Estrutura do Projeto
 
 O projeto está organizado na seguinte estrutura de diretórios:
-
+```
 .
 ├── main.py
-└── utils/
-├── calcular_custo_total.py
-├── carregar_parametros_otimizacao.py
-├── gerar_solucao_inicial_hc1.py
-├── gerar_solucao_inicial_hc1_atualizada.py
-├── gerar_solucao_inicial.py
-└── operacoes_vizinhanca.py
-└── inst0_1.txt
-└── inst0_2.txt
-└── inst0_3.txt
-└── inst0_4.txt
+├── utils/
+│   ├── calcular_custo_total.py
+│   ├── carregar_parametros_otimizacao.py
+│   ├── gerar_solucao_inicial.py
+│   ├── gerar_solucao_inicial_hc1.py
+│   ├── gerar_solucao_inicial_hc1_atualizada.py
+│   └── operacoes_vizinhanca.py
+├── inst0_1.txt
+├── inst0_2.txt
+├── inst0_3.txt
+├── inst0_4.txt
 └── inst0_5.txt
-
+```
 ### Principais Componentes e Arquivos
 
 * **`main.py`**: Ponto de entrada principal do programa. Carrega os parâmetros, gera uma solução inicial heurística e pode ser usado para testar movimentos de vizinhança.
@@ -70,17 +70,17 @@ O projeto utiliza e desenvolve:
 
 ## Futuras Melhorias
 
-- Implementação de uma função robusta de **"reconstrução da solução"** para garantir a factibilidade de todas as variáveis (`x`, `I`, `Q`, `y`, `z`, `sequencias_producao`) após movimentos de vizinhança que alterem `gamma` (aceitação/período do pedido). Isso é crucial para o correto cálculo da FO e validação de restrições como *shelf-life*.
+- Implementação de uma função de **"reconstrução da solução"** para garantir a factibilidade de todas as variáveis (`x`, `I`, `Q`, `y`, `z`, `sequencias_producao`) após movimentos de vizinhança que alterem `gamma` (aceitação/período do pedido). Isso é crucial para o correto cálculo da FO e validação de restrições como *shelf-life*.
 
 - Desenvolvimento de **meta-heurísticas** (e.g., *Simulated Annealing*, *Busca Tabu*, *GRASP*) que utilizem os movimentos de vizinhança para explorar de forma mais eficiente o espaço de soluções.
 
 - Implementação do **terceiro movimento de vizinhança**: `trocar_status_aceitacao_pedido` (aceitar/rejeitar).
 
-- **Testes computacionais extensivos** com diferentes classes de instâncias para avaliar o desempenho das heurísticas.
+- **Testes computacionais** com diferentes classes de instâncias para avaliar o desempenho das heurísticas.
 
 ## Autores
 
-[TBD]
+[Lucas Tayrone Moreira Ribeiro]
 
 ## Referências
 
