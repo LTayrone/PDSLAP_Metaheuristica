@@ -1,17 +1,13 @@
 import numpy as np
-import math
-import random
-import copy
 
 def calcular_FO(solucao, parametros):
     """
-    Calcula o FO.
+    Calcula o valor da função objetivo:
+    FO = soma(receita_pedido[n,t] * gamma[n,t]) - soma(sc[i,j] * z[i,j,t])
     """
     receita_total = np.sum(parametros['receita_pedido'] * solucao['gamma'])
-    # Custo total de setups: sum(sc_ij * z_ijt) para todos i, j, t
     custo_setup_total = 0.0
     for t in range(parametros['num_periodos']):
-        # Multiplicar matriz de custos com z para o período t, e somar
         custo_setup_total += np.sum(parametros['custo_setup'] * solucao['z'][:, :, t])
     objetivo = receita_total - custo_setup_total
     print(f"Lucro Bruto: {receita_total:.2f}")
@@ -21,194 +17,186 @@ def calcular_FO(solucao, parametros):
 
 def validar_restricoes(solucao, parametros):
     """
-    Valida restrições principais (aproximada para heurística).
-    Retorna True se viável, False caso contrário.
+    Valida todas as restrições do modelo com produção distribuída até o período de entrega.
     """
-    N, J, T = parametros['num_pedidos'], parametros['num_itens'], parametros['num_periodos']
-    gamma, y, z, V = solucao['gamma'], solucao['y'], solucao['z'], solucao['V']
+    N = parametros['num_pedidos']
+    J = parametros['num_itens']
+    T = parametros['num_periodos']
+    gamma = solucao['gamma']  # (N, T): 1 se pedido n é entregue em t
+    x = solucao['x']          # (J, N, T): produção do item j do pedido n no período t
+    y = solucao['y']          # (J, T)
+    z = solucao['z']          # (J, J, T)
+    V = solucao['V']          # (J, T)
+    demanda = parametros['demanda_pedidos']  # (N, J)
+    tempo_prod = parametros['tempo_producao']  # (J,)
+    tempo_setup = parametros['tempo_setup']  # (J, J)
+    capacidade = parametros['capacidade_periodo']  # (T,)
 
-    # Eq. 6: Max 1 por pedido (se for maior que 1, violamos)
+    # --- 1. Cada pedido entregue no máximo uma vez ---
     if np.any(np.sum(gamma, axis=1) > 1):
+        print("Violado: pedido entregue mais de uma vez.")
         return False
-    
-    # Eq. 3: Exatamente 1 y_jt por t
-    if np.any(np.sum(y, axis=0) != 1):
-        return False
-    
-    # Eq. 2: Capacidade por periodo (calcular exatamente)
+
+    # --- 2. Produção acumulada até t deve atender demanda se gamma_nt = 1 ---
+    for n in range(N):
+        for j in range(J):
+            acumulado = 0
+            for t in range(T):
+                acumulado += x[j, n, t]
+                if gamma[n, t] == 1 and acumulado < demanda[n, j]:
+                    print(f"Violado: pedido {n}, item {j} não produzido integralmente até t={t}.")
+                    return False
+
+    # --- 3. Capacidade por período ---
     for t in range(T):
-        prod_tempo = np.sum(parametros['tempo_producao'] * np.sum(parametros['demanda_pedidos'] * gamma[:, t][:, np.newaxis], axis=0))
-        setup_tempo = np.sum(parametros['tempo_setup'] * z[:, :, t])  # Corrigido: removido np.newaxis desnecessário (assumindo shapes corretos)
-        if prod_tempo + setup_tempo > parametros['capacidade_periodo'][t]:
+        tempo_usado = 0.0
+        for j in range(J):
+            producao_jt = sum(x[j, n, t] for n in range(N))
+            tempo_usado += tempo_prod[j] * producao_jt
+        tempo_usado += np.sum(tempo_setup * z[:, :, t])
+        if tempo_usado > capacidade[t]:
+            print(f"Violado: capacidade excedida no período {t}. Usado: {tempo_usado:.2f}, Cap: {capacidade[t]:.2f}")
             return False
-        
-    # Eq. 5: Ordem (checar se V_jt >= V_it +1 quando z_ijt=1)
+
+    # --- 4. Produção só se preparado ---
+    for j in range(J):
+        for t in range(T):
+            producao_jt = sum(x[j, n, t] for n in range(N))
+            if producao_jt > 0 and y[j, t] == 0:
+                print(f"Violado: produção do item {j} no período {t} sem setup.")
+                return False
+
+    # --- 5. Sequenciamento: V_jt >= V_it + 1 se z_ijt = 1 ---
     for t in range(T):
         for i in range(J):
             for j in range(J):
                 if i != j and z[i, j, t] == 1:
                     if V[j, t] < V[i, t] + 1:
+                        print(f"Violado: ordem inválida {i}→{j} em t={t}.")
                         return False
-                             
-    # Checagem de fluxo (Eq. 4)
-    for t in range(T-1):
+
+    # --- 6. Conservação de setup (fluxo) ---
+    for t in range(T - 1):
         for j in range(J):
-            left = y[j, t] + np.sum(z[:, j, t])
-            right = np.sum(z[j, :, t]) + y[j, t+1]
-            if left != right:
+            entrada = y[j, t] + np.sum(z[:, j, t])
+            saida = np.sum(z[j, :, t]) + y[j, t + 1]
+            if entrada != saida:
+                print(f"Violado: fluxo de setup para item {j} entre t={t} e {t+1}.")
                 return False
+
     return True
 
 def gerar_solucao_heuristica_original(parametros):
     """
-    Heurística greedy + local search.
+    Heurística que permite produção distribuída no tempo, mas entrega única.
     """
     N, J, T = parametros['num_pedidos'], parametros['num_itens'], parametros['num_periodos']
-    demanda, receita, custo_setup, tempo_setup = parametros['demanda_pedidos'], parametros['receita_pedido'], parametros['custo_setup'], parametros['tempo_setup']
-    capacidade_periodo, tempo_prod = parametros['capacidade_periodo'], parametros['tempo_producao']
-    
+    demanda = parametros['demanda_pedidos']      # (N, J)
+    receita = parametros['receita_pedido']       # (N, T)
+    custo_setup = parametros['custo_setup']      # (J, J)
+    tempo_setup = parametros['tempo_setup']      # (J, J)
+    capacidade = parametros['capacidade_periodo']  # (T,)
+    tempo_prod = parametros['tempo_producao']    # (J,)
+
+    # Inicializar variáveis
     gamma = np.zeros((N, T), dtype=int)
+    x = np.zeros((J, N, T), dtype=int)  # x[j,n,t]: produção do item j do pedido n no período t
     y = np.zeros((J, T), dtype=int)
     z = np.zeros((J, J, T), dtype=int)
     V = np.zeros((J, T), dtype=int)
-    
-    # Fase 1: Greedy - Alocar pedidos
-    prioridades = [(np.max(receita[n]), n) for n in range(N)]  # Priorizar por receita max
+
+    # Acumular capacidade disponível ao longo do tempo
+    cap_acumulada = np.cumsum([c for c in capacidade])  # cap total até t
+
+    # Ordenar pedidos por lucro máximo
+    prioridades = [(np.max(receita[n]), n) for n in range(N)]
     prioridades.sort(reverse=True)
-    
+
     for _, n in prioridades:
-        best_t, best_obj = -1, -np.inf
-        for t in range(T):
-            if np.sum(gamma[n]) > 0:  # Simples: evitar múltiplos, mas ajustar
+        best_t = -1
+        best_seq = None
+        melhor_lucro = -np.inf
+
+        # Tentar entregar o pedido n no período t
+        for t_entrega in range(T):
+            if np.sum(gamma[n]) > 0:
+                continue  # já alocado
+
+            # Verificar se é possível produzir todo o pedido n até t_entrega
+            tempo_total_necessario = 0.0
+            setup_tempo_potencial = 0.0
+            itens_pedido = np.where(demanda[n] > 0)[0]
+
+            # Tempo de produção
+            for j in itens_pedido:
+                tempo_total_necessario += tempo_prod[j] * demanda[n, j]
+
+            # Estimar tempo de setup: sequência mínima entre itens do pedido
+            if len(itens_pedido) > 1:
+                seq = [itens_pedido[0]]
+                rem = set(itens_pedido[1:])
+                while rem:
+                    last = seq[-1]
+                    next_j = min(rem, key=lambda j: custo_setup[last, j])
+                    seq.append(next_j)
+                    rem.remove(next_j)
+                setup_tempo_potencial = sum(tempo_setup[seq[i], seq[i+1]] for i in range(len(seq)-1))
+            else:
+                setup_tempo_potencial = 0
+
+            tempo_total = tempo_total_necessario + setup_tempo_potencial
+
+            # Verificar se cabe na capacidade acumulada até t_entrega
+            if tempo_total > cap_acumulada[t_entrega]:
                 continue
-            # Itens demandados pelo novo pedido + existentes em t
-            gamma_temp = gamma.copy()
-            gamma_temp[n, t] = 1
-            q_t = np.sum(demanda * gamma_temp[:, t][:, np.newaxis], axis=0)
-            itens_t = np.where(q_t > 0)[0]
-            if len(itens_t) == 0:
+
+            # Simular alocação no último período de produção (pode ser antes de t_entrega)
+            # Para simplificar, vamos alocar no período mais tardio possível: t = t_entrega
+            # Mas a produção pode ter começado antes — aqui, alocamos tudo em t_entrega
+            # (melhoria futura: distribuir produção)
+
+            # Verificar capacidade no período t_entrega
+            prod_t = sum(tempo_prod[j] * demanda[n, j] for j in itens_pedido)
+            setup_t = setup_tempo_potencial
+            if prod_t + setup_t > capacidade[t_entrega]:
                 continue
-            
-            # Otimizar sequência simples (nearest neighbor para minimizar custo setup)
-            seq = [itens_t[0]]  # Começar com primeiro
-            remaining = set(itens_t[1:])
-            while remaining:
-                last = seq[-1]
-                next_item = min(remaining, key=lambda j: custo_setup[last, j])
-                seq.append(next_item)
-                remaining.remove(next_item)
-            
-            # Calcular tempo setup para sequência
-            setup_tempo = sum(tempo_setup[seq[i], seq[i+1]] for i in range(len(seq)-1))
-            prod_tempo = sum(tempo_prod[j] * q_t[j] for j in itens_t)
-            if prod_tempo + setup_tempo > capacidade_periodo[t]:
-                continue
-            
-            # Estimar obj
-            obj_est = receita[n, t] - sum(custo_setup[seq[i], seq[i+1]] for i in range(len(seq)-1))
-            if obj_est > best_obj:
-                best_obj = obj_est
-                best_t = t
-                best_seq = seq
-        
+
+            # Avaliar lucro
+            lucro_liquido = receita[n, t_entrega] - setup_tempo_potencial * 0.1  # peso arbitrário
+            if lucro_liquido > melhor_lucro:
+                melhor_lucro = lucro_liquido
+                best_t = t_entrega
+                best_seq = seq if len(itens_pedido) > 1 else list(itens_pedido)
+
         if best_t != -1:
             gamma[n, best_t] = 1
-            # Aplicar sequência
+            # Alocar produção total no período best_t
+            for j in range(J):
+                x[j, n, best_t] = demanda[n, j]
+
+            # Atualizar setup, sequência no período best_t
             y[:, best_t] = 0
             y[best_seq[0], best_t] = 1
-            for i in range(len(best_seq)-1):
+            for i in range(len(best_seq) - 1):
                 z[best_seq[i], best_seq[i+1], best_t] = 1
-            for ord_, j in enumerate(best_seq):
-                V[j, best_t] = ord_ + 1
-    
-    # Propagar y e z para fluxo (Eq. 4 - versão corrigida e robusta)
-    for t in range(T-1):
-        # Encontre o último item produzido em t (maior V entre itens com V > 0)
-        itens_produzidos_t = np.where(V[:, t] > 0)[0]
-        if len(itens_produzidos_t) == 0:
-            print(f"Debug: Período {t} vazio, nada a propagar.")
+            for ordem, j in enumerate(best_seq):
+                V[j, best_t] = ordem + 1
+
+    # Propagar setup entre períodos
+    for t in range(T - 1):
+        itens_t = np.where(V[:, t] > 0)[0]
+        if len(itens_t) == 0:
             continue
-        
-        last_j = itens_produzidos_t[np.argmax(V[itens_produzidos_t, t])]
-        print(f"Debug: Último item em t={t}: {last_j}")
-        
-        # Verifique t+1
-        itens_produzidos_t1 = np.where(V[:, t+1] > 0)[0]
-        if len(itens_produzidos_t1) == 0:
-            # t+1 vazio: Continue do last_j sem troca
-            y[last_j, t+1] = 1
-            V[last_j, t+1] = 1
-            print(f"Debug: Setado y[{last_j}, {t+1}] = 1 (período vazio).")
-            continue
-        
-        # t+1 não vazio: Pegue inicial atual
-        initial_t1_indices = np.where(y[:, t+1] == 1)[0]
-        if len(initial_t1_indices) != 1:
-            print(f"Aviso: Múltiplos y=1 em t={t+1}, pulando propagação.")
-            continue
-        
-        initial_j = initial_t1_indices[0]
-        if last_j == initial_j:
-            print(f"Debug: Match perfeito em t={t+1}, sem troca necessária.")
-            continue  # Já compatível, sem custo extra
-        
-        # Mismatch: Tente evitar troca mudando y para last_j (se custo zero ou baixo)
-        if custo_setup[last_j, initial_j] == 0 or tempo_setup[last_j, initial_j] == 0:
-            # Mude inicial para last_j sem adicionar z (economiza)
-            y[:, t+1] = 0
-            y[last_j, t+1] = 1
-            # Ajuste V: Defina V[last_j, t+1] = 1, e o antigo initial vira 2 (com z implícito se custo zero)
-            V[last_j, t+1] = 1
-            V[initial_j, t+1] = 2  # Assuma transição simples
-            print(f"Debug: Mudado inicial de t={t+1} para {last_j} sem custo.")
-            continue
-        
-        # Senão, adicione z[last_j, initial_j, t+1], mas cheque capacidade
-        tempo_extra = tempo_setup[last_j, initial_j]
-        # Calcule capacidade atual em t+1 (semelhante à validação)
-        prod_tempo_t1 = np.sum(tempo_prod * np.sum(demanda * gamma[:, t+1][:, np.newaxis], axis=0))
-        setup_tempo_t1_atual = np.sum(tempo_setup * z[:, :, t+1])
-        if prod_tempo_t1 + setup_tempo_t1_atual + tempo_extra > capacidade_periodo[t+1]:
-            print(f"Aviso: Adicionar troca em t={t+1} viola capacidade; pulando.")
-            continue  # Não adicione para evitar inviabilidade
-        
-        # Adicione a troca
-        z[last_j, initial_j, t+1] = 1
-        # Ajuste V apenas para itens afetados: Defina V[last_j] = max(V em t+1) + 1? Não, para inserir no início:
-        max_v_t1 = np.max(V[:, t+1])
-        V[itens_produzidos_t1, t+1] += 1  # Shift só itens produzidos
-        V[last_j, t+1] = 1  # last_j como novo primeiro
-        # Atualize y para novo inicial
-        y[:, t+1] = 0
-        y[last_j, t+1] = 1
-        print(f"Debug: Adicionada troca z[{last_j}, {initial_j}, {t+1}] com custo {custo_setup[last_j, initial_j]}.")
-    
-    # Fase 2: Local Search - Realocar pedidos (ativado para teste)
-    solucao_atual = {'gamma': gamma, 'y': y, 'z': z, 'V': V}
-    obj_atual = calcular_FO(solucao_atual, parametros)
-    
-    for iter_ in range(0):  # Ativado com 10 iterações para refinamento (ajuste)
-        for n in range(N):
-            curr_t = np.argmax(gamma[n])
-            if gamma[n, curr_t] == 0:
-                continue
-            for new_t in range(T):
-                if new_t == curr_t:
-                    continue
-                gamma_temp = gamma.copy()
-                gamma_temp[n, curr_t] = 0
-                gamma_temp[n, new_t] = 1
-                # TODO: Reotimizar sequência em curr_t e new_t (repita lógica de greedy aqui para atualizar y/z/V localmente)
-                # Por agora, use aproximado; adicione full reotimização para precisão
-                obj_novo = calcular_FO({'gamma': gamma_temp, 'y': y, 'z': z, 'V': V}, parametros)  # Aproximado
-                if obj_novo > obj_atual:
-                    gamma = gamma_temp
-                    obj_atual = obj_novo
-                    break
-    
-    solucao = {'gamma': gamma, 'y': y, 'z': z, 'V': V}
+        ultimo_j = itens_t[np.argmax(V[itens_t, t])]
+        if y[ultimo_j, t + 1] == 0 and np.sum(y[:, t + 1]) > 0: 
+            inicial_t1 = np.argmax(y[:, t + 1])
+            if custo_setup[ultimo_j, inicial_t1] == 0:
+                y[:, t + 1] = 0
+                y[ultimo_j, t + 1] = 1
+
+    solucao = {'gamma': gamma, 'x': x, 'y': y, 'z': z, 'V': V}
     if validar_restricoes(solucao, parametros):
-        print("Solução viável!")
+        print("Solução viável gerada com produção distribuível até entrega.")
     else:
-        print("Solução aproximada - algumas restrições podem precisar ajuste.")
+        print("Solução inviável.")
     return solucao

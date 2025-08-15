@@ -161,8 +161,6 @@ if __name__ == "__main__":
 # print(f"\nValor da Função Objetivo (GRASP, alpha={alpha_grasp}): {valor_fo_grasp}")
 # print("-" * 50)
 
-
-
 # Heurística
 solucao_heur = gerar_solucao_heuristica_original(parametros)
 valor_final = calcular_FO(solucao_heur, parametros)
